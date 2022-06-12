@@ -11,7 +11,6 @@ This is a simple implementation of a neural network framework inspired by pytorc
 ### TODO
 
 - Adam
-- basic Gradient Descent
 - Convolutional layers
 - MultiHeadAttention layers
 - some sort of automated stat tracking for analysis

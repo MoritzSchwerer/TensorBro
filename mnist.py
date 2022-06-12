@@ -10,6 +10,8 @@ from layers.activations import ReLu, Tanh
 from util.loss import mse, mse_prime
 
 from optimizers.gradientdescentMM import GradientDescentMM
+from optimizers.gradientdescent import GradientDescent
+from optimizers.adam import Adam
 
 def preprocess_data(x,y,limit):
     # reshape and normalisation
@@ -33,11 +35,15 @@ x_train = np.split(x_train, num_batches, axis=1)
 y_train = np.split(y_train, num_batches, axis=1)
 
 # hyperparameters
-epochs = 1000
+epochs = 500
 learning_rate = 0.1
 
-optimizer1 = GradientDescentMM(28*28, 28*2)
-optimizer2 = GradientDescentMM(28*2, 10)
+#optimizer1 = GradientDescentMM(28*28, 28*2)
+#optimizer2 = GradientDescentMM(28*2, 10)
+#optimizer1 = GradientDescent()
+#optimizer2 = GradientDescent()
+optimizer1 = Adam(28*28, 28*2)
+optimizer2 = Adam(28*2, 10)
 # nural network
 network = [
     Dense(28*28, 28*2, optimizer1),
@@ -54,8 +60,7 @@ def test(network, X,Y):
     right = np.count_nonzero(pred==act)
     return right / act.shape[0]
 
-def predict(network, input):
-    output = input
+def predict(network, output):
     for layer in network:
         output = layer.forward(output)
     return output
@@ -79,6 +84,6 @@ for e in range(epochs+1):
             grad = layer.backward(grad)
 
     if e % 10 == 0:
-        error /= len(x_train[0])
+        #error /= len(x_train[0])
         acc = test(network, x_test,y_test)
         print('%d/%d, error=%f, accuracy=%f' % (e, epochs, error, round(acc,2)))
