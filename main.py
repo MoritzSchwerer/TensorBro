@@ -26,6 +26,7 @@ def test(network, X,Y):
         output = predict(network, x)
         print(output, y[0][0])
 
+
 # training loop
 
 def predict(network, input):
