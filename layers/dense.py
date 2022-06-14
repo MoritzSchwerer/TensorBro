@@ -27,7 +27,7 @@ class Dense(Layer):
     backward(dZ):
         takes the gradient and returns the correct new W and B
     """
-    def __init__(self, input_size, output_size, optimizer):
+    def __init__(self, input_size=1, output_size=1, optimizer=[]):
         self.W = np.random.randn(output_size, input_size)
         self.B = np.random.randn(output_size, 1)
         self.optimizer = optimizer

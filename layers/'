@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+
+from .base import Layer
+
+class Conv2d(Layer):
+    def __init__(self, input_shape=(1,1,1), kernel_size=3, depth=3):
+        input_depth, input_height, input_width = input_shape
+        self.depth = depth
+        self.input_shape = input_shape
+        self.input_depth = input_depth
+        self.output_shape = (depth, input_height - kernel_size + 1, input_width - kernel_size + 1)
+
+    def forward(self):
+        pass
+
+    def backward(self):
+        pass
