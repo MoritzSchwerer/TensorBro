@@ -1,12 +1,18 @@
-import torch
+from src.lazy import LazyBuffer, LazyOp
+from src.ops import LoadOps
 
-from src.modules.dense_layer import DenseLayer
+# import numpy as np
 
-if __name__ == "__main__":
-    print("Test: this should converge to 0")
-    layer = DenseLayer(4, 5)
-    print(layer.weights)
-    params = layer.get_params()
-    params['weights'] += 10
-    print(layer.weights)
 
+if __name__ == '__main__':
+    op1 = LazyOp(LoadOps.Rand, ())
+    op2 = LazyOp(LoadOps.Rand, ())
+    op3 = LazyOp(LoadOps.Rand, ())
+
+    l1 = LazyBuffer(op1, 'CPU', (10, 10))
+    l2 = LazyBuffer(op2, 'CPU', (10, 10))
+    l3 = LazyBuffer(op2, 'CPU', (10, 10))
+    l4 = l1 * l2 + l3
+    sch = l4.schedule()
+    for s in sch:
+        print(s.op)
