@@ -24,7 +24,7 @@ class LazyBuffer:
         return self.reg_binary(BinaryOps.Add, other)
 
     def __repr__(self):
-        return f'LazyBuffer: op={self.op}, device={self.device}, shape={self.shape}, base={self.base}'
+        return f'LazyBuffer: op={self.op}, device={self.device}, shape={self.shape}'
 
     def schedule(self, seen=None):
         seen = seen if seen is not None else set()

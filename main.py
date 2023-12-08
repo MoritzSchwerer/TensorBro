@@ -14,5 +14,5 @@ if __name__ == '__main__':
     l3 = LazyBuffer(op2, 'CPU', (10, 10))
     l4 = l1 * l2 + l3
     sch = l4.schedule()
-    for s in sch:
-        print(s.op)
+    for s in reversed(list(sch)):
+        print(s)

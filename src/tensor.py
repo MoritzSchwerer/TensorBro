@@ -1,6 +1,9 @@
+from typing import Optional
+
+
 class Context:
     def __init__(self, *inputs: 'Tensor'):
-        self.parents = inputs
+        self.parents: 'Tensor' = inputs
 
     def forward(self, inputs):
         pass
@@ -27,10 +30,10 @@ import src.ops as ops
 class Tensor:
     def __init__(self, data) -> None:
         self.data = data
-        self.context = None
+        self.context: Optional[Context] = None
 
     def __repr__(self):
-        return f'Tensor: data={self.data}\n     context={self.context}\n'
+        return f'Tensor: data={self.data}\n'
 
     def __mul__(self, other):
         return ops.Mul.apply(self, other)
