@@ -1,30 +1,35 @@
 import math
 import numpy as np
 
-from typing import Optional, Tuple
-from .ops import LazyOp, OpType, BinaryOps
+from typing import Optional, Tuple, Union
+from .ops import LazyOp, OpType, BinaryOps, UnaryOps, TernaryOps
+
+
+class ShapeTracker:
+    def __init__(self, view, stride):
+        self._views = [view]
+        self._strides = [stride]
+
+    @property
+    def view(self) -> Tuple[int, ...]:
+        return self._views[-1]
+
+    def stride(self) -> Tuple[int, ...]:
+        return self._strides[-1]
+
+    def __repr__(self):
+        return f'ST: views={self._views}, strides={self._strides}.'
 
 
 class LazyBuffer:
-    def __init__(self, op: Optional[LazyOp], device: str, shape: Tuple[int, ...], base=None):
+    def __init__(self, op: Optional[LazyOp], device: str, shape_tracker, base=None):
         self.op: Optional[LazyOp] = op
         self.device: str = device
-        self.shape: Tuple[int, ...] = shape
+        self.shape_tracker = shape_tracker
         self.base = base
 
-    def reg_binary(self, op: OpType, *srcs):
-        srcs = (self,) + srcs
-        lazy_op = LazyOp(op, srcs)
-        return LazyBuffer(lazy_op, self.device, self.shape)
-
-    def __mul__(self, other):
-        return self.reg_binary(BinaryOps.Mul, other)
-
-    def __add__(self, other):
-        return self.reg_binary(BinaryOps.Add, other)
-
     def __repr__(self):
-        return f'LazyBuffer: op={self.op}, device={self.device}, shape={self.shape}'
+        return f'LazyBuffer: op={self.op}, device={self.device}, st={self.shape_tracker}'
 
     def schedule(self, seen=None):
         seen = seen if seen is not None else set()
@@ -35,3 +40,18 @@ class LazyBuffer:
                 src.schedule(seen)
 
         return seen
+
+    # TODO: if we find elemwise, movement elemwise pattern
+    # we can push the movement op above the first elementwise op
+    def elementwise(self, op: Union[UnaryOps, BinaryOps, TernaryOps], *srcs):
+        for src in srcs:
+            assert (
+                src.shape_tracker.view == self.shape_tracker.view
+            ), f'Shapes do not match, broadcasting not implemented yet.'
+        srcs = (self,) + srcs
+        lazy_op = LazyOp(op, srcs)
+        return LazyBuffer(lazy_op, self.device, self.shape_tracker)
+
+    def matmul(self, other):
+        # this will be expand, elementwise mul and sum
+        raise NotImplementedError('Not implemented yet.')
