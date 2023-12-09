@@ -7,17 +7,62 @@ from typing import Union, Type, Tuple, Any
 
 
 class LoadOps(Enum):
-    Empty = auto()
-    Const = auto()
-    Rand = auto()
+    EMPTY = auto()
+    CONST = auto()
+    RAND = auto()
+
+
+class UnaryOps(Enum):
+    NEG = auto()
+    SIN = auto()
+    CAST = auto()
+    SQRT = auto()
+    EXP2 = auto()
+    LOG2 = auto()
 
 
 class BinaryOps(Enum):
-    Mul = auto()
-    Add = auto()
+    MUL = auto()
+    ADD = auto()
+    SUB = auto()
+    DIV = auto()
+    MAX = auto()
+    MOD = auto()
 
 
-OpType = Union[Type[BinaryOps], Type[LoadOps]]
+class TernaryOps(Enum):
+    MULACC = auto()
+    WHERE = auto()
+
+
+class ReduceOps(Enum):
+    SUM = auto()
+    MAX = auto()
+
+
+class BufferOps(Enum):
+    LOAD = auto()
+    CONST = auto()
+    STORE = auto()
+
+
+class MovementOps(Enum):
+    RESHAPE = auto()
+    EXPAND = auto()
+    PERMUTE = auto()
+    PAD = auto()
+
+
+Op = Union[UnaryOps, BinaryOps, ReduceOps, MovementOps, LoadOps, TernaryOps, BufferOps]
+OpType = Union[
+    Type[UnaryOps],
+    Type[BinaryOps],
+    Type[ReduceOps],
+    Type[MovementOps],
+    Type[LoadOps],
+    Type[TernaryOps],
+    Type[BufferOps],
+]
 
 
 @dataclass(frozen=True)
