@@ -15,7 +15,6 @@ class LoadOps(Enum):
 class UnaryOps(Enum):
     NEG = auto()
     SIN = auto()
-    CAST = auto()
     SQRT = auto()
     EXP2 = auto()
     LOG2 = auto()
@@ -70,6 +69,10 @@ class LazyOp:
     op: OpType
     srcs: Tuple[Union[Any, Any], ...]
     arg: Any = None
+
+    @property
+    def buffers(self):
+        return sum([s.buffers for s in self.srcs], ())
 
 
 class Mul(Context):
