@@ -16,7 +16,7 @@ from cgen import (
     Include,
 )
 from pathlib import Path
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Type
 
 from ..ops import BinaryOps, LoadOps, OpType
 
@@ -69,7 +69,7 @@ def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
         assert arg is not None, 'We need to provide a seed for the rand function'
         includes = ['stdlib.h']
         prefix = Statement(f'srand({arg})')
-        assignment = Assign('out[i]', f'(float)rand() / (float)(RAND_MAX)')
+        assignment = Assign('out[i]', '(float)rand() / (float)(RAND_MAX)')
     elif op is LoadOps.CONST:
         assert arg is not None, 'Need to provide const value'
         includes = []
@@ -102,11 +102,11 @@ def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
 
 def c_generator(func_name: str, op: OpType, shape, dtype=c.c_float, arg=None) -> Module:
     if op in BinaryOps:
-        return c_binary(func_name, op, shape, dtype)
+        return c_binary(func_name, op, shape, dtype) # type: ignore
     elif op in LoadOps:
         return c_load(func_name, op, shape, dtype, arg)
     else:
-        raise NotImplementedError(f'c_generator for {op.op} not implemented yet.')
+        raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
 
 class CProgram:
@@ -130,6 +130,7 @@ class CProgram:
 
     def _gen_func_name_args(self) -> Tuple[str, Any]:
         str_shape = str(math.prod(self.shape))
+        args: Tuple[Type[c._Pointer[c.c_float]], ...] 
         if self.op in BinaryOps:
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))

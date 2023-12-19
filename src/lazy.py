@@ -1,10 +1,11 @@
 import math
-from typing import Optional, Tuple, Union, List, Dict, Any
-from .ops import LazyOp, BinaryOps, UnaryOps, TernaryOps, LoadOps, BufferOps, MovementOps
-
-from dataclasses import dataclass
-
 import ctypes as c
+
+from typing import Optional, Tuple, Union, List
+
+from .ops import LazyOp, BinaryOps, UnaryOps, TernaryOps, LoadOps, MovementOps
+from .runners.clang import CAllocator
+from .linearizer import ScheduleItem
 
 
 class ShapeTracker:
@@ -26,13 +27,6 @@ class ShapeTracker:
     def __repr__(self):
         # return f'ST: views={self._views}, strides={self._strides}.'
         return '<ST>'
-
-
-@dataclass(frozen=True)
-class ScheduleItem:
-    op: LazyOp
-    target: 'LazyBuffer'
-    srcs: Tuple[Union['LazyBuffer', LazyOp], ...]
 
 
 class LazyBuffer:
@@ -98,7 +92,7 @@ class LazyBuffer:
 
     # this is fake just to test something
     def movement(self, op: MovementOps, new_shape):
-        lazy_op = LazyOp(op, (self,))
+        lazy_op = LazyOp(op, (self,)) # type: ignore
         return LazyBuffer(lazy_op, self.device, ShapeTracker(new_shape))
 
     def reshape(self, new_shape):
@@ -110,9 +104,9 @@ class LazyBuffer:
         for src in srcs:
             assert (
                 src.shape_tracker.view == self.shape_tracker.view
-            ), f'Shapes do not match, broadcasting not implemented yet.'
+            ), 'Shapes do not match, broadcasting not implemented yet.'
         srcs = (self,) + srcs
-        lazy_op = LazyOp(op, srcs)
+        lazy_op = LazyOp(op, srcs) # type: ignore
         return LazyBuffer(lazy_op, self.device, self.shape_tracker)
 
     @staticmethod
@@ -125,7 +119,3 @@ class LazyBuffer:
         lazy_op = LazyOp(LoadOps.CONST, (), value)
         st = ShapeTracker.from_shape(shape)
         return LazyBuffer(lazy_op, device, st)
-
-    @property
-    def shape(self):
-        return self.shape_tracker.view

@@ -1,9 +1,10 @@
-from typing import Optional
+from typing import Optional, Tuple
+import src.ops as ops
 
 
 class Context:
     def __init__(self, *inputs: 'Tensor'):
-        self.parents: 'Tensor' = inputs
+        self.parents: Tuple['Tensor', ...] = inputs
 
     def forward(self, inputs):
         pass
@@ -22,9 +23,6 @@ class Context:
         result = Tensor(context.forward(*[t.data for t in args]))
         result.context = context
         return result
-
-
-import src.ops as ops
 
 
 class Tensor:
