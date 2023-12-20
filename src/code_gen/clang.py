@@ -18,17 +18,23 @@ from cgen import (
 from pathlib import Path
 from typing import List, Tuple, Any, Type
 
-from ..ops import BinaryOps, LoadOps, OpType
+from ..ops import BinaryOps, LoadOps, OpType, UnaryOps
 
 
-ops_to_cstyle = {
+bops_to_cstyle = {
     BinaryOps.MUL: '*',
     BinaryOps.ADD: '+',
     BinaryOps.SUB: '-',
     BinaryOps.DIV: '/',
     BinaryOps.MOD: '%',
-    # NOTE: max can be implemented with out = fmax(inp1, inp2)
-    # BinaryOps.MAX: ''
+}
+
+uops_to_cstyle = {
+    UnaryOps.NEG: lambda name: f"-{name}",
+    UnaryOps.SIN: lambda name: f"sinf({name})",
+    UnaryOps.SQRT: lambda name: f"sqrtf({name})",
+    UnaryOps.EXP2: lambda name: f"exp2f({name})",
+    UnaryOps.LOG2: lambda name: f"log2f({name})",
 }
 
 
@@ -36,9 +42,42 @@ def ctype2str(t):
     return t.__name__[2:]
 
 
-def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
+def c_unary(function_name: str, op: UnaryOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
+    assignment = Assign("out[i]", uops_to_cstyle[op]('inp1[i]'))
     code = Module(
         [
+            Include("math.h"),
+            FunctionBody(
+                FunctionDeclaration(
+                    Value('void', function_name),
+                    arg_decls=[Pointer(POD(dtype, name)) for name in ['out', "inp1"]],
+                ),
+                Block(
+                    [
+                        For(
+                            'int i = 0',
+                            f'i<{math.prod(shape)}',
+                            'i++',
+                            Block([assignment]),
+                        ),
+                    ]
+                ),
+            )
+        ]
+    )
+    return code
+
+
+def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
+    includes = []
+    if op is BinaryOps.MAX:
+        assignment = Assign("out[i]", "fmax(inp1[i], inp2[i])")
+        includes.append(Include("math.h"))
+    else:
+        assignment = Assign('out[i]', f'inp1[i] {bops_to_cstyle[op]} inp2[i]')
+    code = Module(
+        [
+            *includes,
             FunctionBody(
                 FunctionDeclaration(
                     Value('void', function_name),
@@ -50,7 +89,7 @@ def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.
                             'int i = 0',
                             f'i<{math.prod(shape)}',
                             'i++',
-                            Block([Assign('out[i]', f'inp1[i] {ops_to_cstyle[op]} inp2[i]')]),
+                            Block([assignment]),
                         ),
                     ]
                 ),
@@ -60,8 +99,6 @@ def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.
     return code
 
 
-def c_unary(op, shape, dtype=c.c_float):
-    pass
 
 
 def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
@@ -103,6 +140,8 @@ def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
 def c_generator(func_name: str, op: OpType, shape, dtype=c.c_float, arg=None) -> Module:
     if op in BinaryOps:
         return c_binary(func_name, op, shape, dtype) # type: ignore
+    elif op in UnaryOps:
+        return c_unary(func_name, op, shape, dtype) # type: ignore
     elif op in LoadOps:
         return c_load(func_name, op, shape, dtype, arg)
     else:
@@ -134,6 +173,9 @@ class CProgram:
         if self.op in BinaryOps:
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
+        elif self.op in UnaryOps:
+            func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
+            args = (c.POINTER(c.c_float), )
         elif self.op in LoadOps:
             func_name = f'load_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             func_name += '' if self.arg is None else f'_{int(self.arg)}'
