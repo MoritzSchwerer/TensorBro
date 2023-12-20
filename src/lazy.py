@@ -109,9 +109,10 @@ class LazyBuffer:
         lazy_op = LazyOp(op, srcs) # type: ignore
         return LazyBuffer(lazy_op, self.device, self.shape_tracker)
 
+
     @staticmethod
-    def rand(shape, device):
-        lazy_op = LazyOp(LoadOps.RAND, (), arg=1)
+    def rand(shape, device, arg=1):
+        lazy_op = LazyOp(LoadOps.RAND, (), arg=arg)
         return LazyBuffer(lazy_op, device, ShapeTracker(shape))
 
     @staticmethod
