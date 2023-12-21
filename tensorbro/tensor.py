@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
-import src.ops as ops
-
+import tensorbro.ops as ops
 
 class Context:
     def __init__(self, *inputs: 'Tensor'):
@@ -17,13 +16,10 @@ class Context:
 
     @classmethod
     def apply(func, *args: 'Tensor'):
-        # create the context for the op
         context = func(*args)
-        # call forward method
         result = Tensor(context.forward(*[t.data for t in args]))
         result.context = context
         return result
-
 
 class Tensor:
     def __init__(self, data) -> None:

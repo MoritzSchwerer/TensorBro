@@ -1,10 +1,9 @@
-from .tensor import Context
-
 from dataclasses import dataclass
 from enum import Enum, auto
 
 from typing import Union, Type, Tuple, Any
 
+from .tensor import Context
 
 class LoadOps(Enum):
     EMPTY = auto()
@@ -66,6 +65,8 @@ class LazyOp:
     @property
     def buffers(self):
         return sum([s.buffers for s in self.srcs], ())
+
+
 
 
 class Mul(Context):

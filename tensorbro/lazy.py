@@ -111,8 +111,8 @@ class LazyBuffer:
 
 
     @staticmethod
-    def rand(shape, device, arg=1):
-        lazy_op = LazyOp(LoadOps.RAND, (), arg=arg)
+    def rand(shape, device, seed=1):
+        lazy_op = LazyOp(LoadOps.RAND, (), arg=seed)
         return LazyBuffer(lazy_op, device, ShapeTracker(shape))
 
     @staticmethod

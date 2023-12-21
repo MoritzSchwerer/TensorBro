@@ -1,6 +1,6 @@
-from src.lazy import LazyBuffer
-from src.ops import UnaryOps
-from src.linearizer import linearize
+from tensorbro.lazy import LazyBuffer
+from tensorbro.ops import UnaryOps
+from tensorbro.linearizer import linearize
 
 def show_buffer_2d(buffer, shape, num_decimals=4):
     assert len(shape) <= 2, f"cannot show {len(shape)}-dimensional tensor."
@@ -11,7 +11,7 @@ def show_buffer_2d(buffer, shape, num_decimals=4):
         print("", end="" if i == shape[0]-1 and j==shape[1]-1 else "\n")
     print(']')
 
-b1 = LazyBuffer.rand((2, 10), 'CPU', arg=1) 
+b1 = LazyBuffer.rand((2, 10), 'CPU', seed=1) 
 operations = [UnaryOps.NEG, UnaryOps.SIN, UnaryOps.SQRT, UnaryOps.EXP2, UnaryOps.LOG2]
 results = [b1.elementwise(op) for op in operations]
 print('='*99)
