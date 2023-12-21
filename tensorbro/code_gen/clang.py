@@ -18,7 +18,7 @@ from cgen import (
 from pathlib import Path
 from typing import List, Tuple, Any, Type
 
-from ..ops import BinaryOps, LoadOps, OpType, UnaryOps
+from ..ops import BinaryOps, LoadOps, OpType, UnaryOps, ReduceOps
 
 
 bops_to_cstyle = {
@@ -40,6 +40,10 @@ uops_to_cstyle = {
 
 def ctype2str(t):
     return t.__name__[2:]
+
+def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
+    pass
+
 
 
 def c_unary(function_name: str, op: UnaryOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:

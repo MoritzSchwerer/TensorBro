@@ -39,12 +39,6 @@ class ReduceOps(Enum):
     MAX = auto()
 
 
-class BufferOps(Enum):
-    LOAD = auto()
-    CONST = auto()
-    STORE = auto()
-
-
 class MovementOps(Enum):
     RESHAPE = auto()
     EXPAND = auto()
@@ -52,7 +46,7 @@ class MovementOps(Enum):
     PAD = auto()
 
 
-Op = Union[UnaryOps, BinaryOps, ReduceOps, MovementOps, LoadOps, TernaryOps, BufferOps]
+Op = Union[UnaryOps, BinaryOps, ReduceOps, MovementOps, LoadOps, TernaryOps]
 OpType = Union[
     Type[UnaryOps],
     Type[BinaryOps],
@@ -60,7 +54,6 @@ OpType = Union[
     Type[MovementOps],
     Type[LoadOps],
     Type[TernaryOps],
-    Type[BufferOps],
 ]
 
 
