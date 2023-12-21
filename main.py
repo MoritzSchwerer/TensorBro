@@ -1,34 +1,27 @@
 from src.lazy import LazyBuffer
-from src.linearizer import linearize
 from src.ops import UnaryOps
+from src.linearizer import linearize
 
-
-b1 = LazyBuffer.rand((10, ), 'CPU', arg=1)
-
-
-ops = [
-    UnaryOps.NEG,
-    UnaryOps.SIN,
-    UnaryOps.SQRT,
-    UnaryOps.EXP2,
-    UnaryOps.LOG2,
-]
-for op in ops:
-    print("="*99)
-    print(op)
-    b4 = b1.elementwise(op)
-    sch = b4.schedule()
-    runner = linearize(sch)
-    runner()
-
+def show_buffer_2d(buffer, shape, num_decimals=4):
+    assert len(shape) <= 2, f"cannot show {len(shape)}-dimensional tensor."
     print('[', end='')
-    for j in range(10):
-        print(b4.base[+j], end=', ')
+    for i in range(shape[0]):
+        for j in range(shape[1]):
+            print(round(buffer.base[i*shape[1]+j], num_decimals), end='' if i == shape[0]-1 and j == shape[1]-1 else ", ")
+        print("", end="" if i == shape[0]-1 and j==shape[1]-1 else "\n")
     print(']')
 
+b1 = LazyBuffer.rand((2, 10), 'CPU', arg=1) 
+operations = [UnaryOps.NEG, UnaryOps.SIN, UnaryOps.SQRT, UnaryOps.EXP2, UnaryOps.LOG2]
+results = [b1.elementwise(op) for op in operations]
+print('='*99)
+for result in results:
+    print(result)
 print("="*99)
+
+
+for result in results:
+    linearize(result.schedule())()
+    show_buffer_2d(result, (2, 10), num_decimals=3)
+
 print("base value")
-print('[', end='')
-for j in range(10):
-    print(b1.base[j], end=', ')
-print(']')
