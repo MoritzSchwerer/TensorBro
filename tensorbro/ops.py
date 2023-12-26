@@ -25,7 +25,6 @@ class BinaryOps(Enum):
     SUB = auto()
     DIV = auto()
     MAX = auto()
-    MOD = auto()
 
 
 class TernaryOps(Enum):

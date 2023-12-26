@@ -26,7 +26,6 @@ bops_to_cstyle = {
     BinaryOps.ADD: '+',
     BinaryOps.SUB: '-',
     BinaryOps.DIV: '/',
-    BinaryOps.MOD: '%',
 }
 
 uops_to_cstyle = {

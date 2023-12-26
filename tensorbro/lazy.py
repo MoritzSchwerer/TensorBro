@@ -21,11 +21,11 @@ class ShapeTracker:
     def view(self) -> Tuple[int, ...]:
         return self._views[-1]
 
+    @property
     def stride(self) -> Tuple[int, ...]:
         return self._strides[-1]
 
     def __repr__(self):
-        # return f'ST: views={self._views}, strides={self._strides}.'
         return '<ST>'
 
 
@@ -33,13 +33,17 @@ class LazyBuffer:
     def __init__(self, op: Optional[LazyOp], device: str, shape_tracker, base=None):
         self.op: Optional[LazyOp] = op
         self.device: str = device
-        self.shape_tracker = shape_tracker
+        self.shape_tracker: ShapeTracker = shape_tracker
         self._base = base
-        self._realized = True if base is not None else False
+        self._realized: bool = True if base is not None else False
+
+    @property
+    def st(self):
+        return self.shape_tracker
 
     @property
     def shape(self):
-        return self.shape_tracker.view
+        return self.st.view
 
     @property
     def is_realized(self) -> bool:
@@ -47,11 +51,7 @@ class LazyBuffer:
 
     @property
     def size(self):
-        return math.prod(self.shape_tracker.view)
-
-    @property
-    def is_pointer(self) -> bool:
-        return isinstance(self.base, c._CData)
+        return math.prod(self.shape)
 
     def realize(self, value=None):
         self._realized = True
@@ -90,26 +90,26 @@ class LazyBuffer:
     def buffers(self):
         return (self,)
 
-    # this is fake just to test something
     def movement(self, op: MovementOps, new_shape):
-        lazy_op = LazyOp(op, (self,)) # type: ignore
-        return LazyBuffer(lazy_op, self.device, ShapeTracker(new_shape))
+        self.shape_tracker._views.append(new_shape)
+        return self
 
-    def reshape(self, new_shape):
-        return self.movement(MovementOps.RESHAPE, new_shape)
+    def reshape(self, *new_shape: int):
+        return self.movement(MovementOps.RESHAPE, tuple(new_shape))
 
     # TODO: if we find elemwise, movement elemwise pattern
     # we can push the movement op above the first elementwise op
     def elementwise(self, op: Union[UnaryOps, BinaryOps, TernaryOps], *srcs):
         for src in srcs:
             assert (
-                src.shape_tracker.view == self.shape_tracker.view
+                src.shape == self.shape
             ), 'Shapes do not match, broadcasting not implemented yet.'
         srcs = (self,) + srcs
         lazy_op = LazyOp(op, srcs) # type: ignore
         return LazyBuffer(lazy_op, self.device, self.shape_tracker)
 
 
+    # utility functions to make life easier
     @staticmethod
     def rand(shape, device, seed=1):
         lazy_op = LazyOp(LoadOps.RAND, (), arg=seed)
