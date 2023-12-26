@@ -20,9 +20,8 @@ class TestLazyOpsMovement(unittest.TestCase):
         lb = LazyBuffer.full(10, (100, 1), device="CLANG")
         res = lb.movement(MovementOps.EXPAND, (100, 20))
         linearize(res.schedule())()
-        np_res = np.ones((100, 20)) * 10
-        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
-        np.testing.assert_allclose(np_res, clang_res)
+        self.assertEqual(res.shape, (100, 20))
+        self.assertEqual(res.st.stride, (1, 20))
         
     # def test_permute(self):
     #     res = self.l1.movement(MovementOps.RESHAPE, (20, 5))

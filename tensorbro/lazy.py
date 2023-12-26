@@ -90,8 +90,14 @@ class LazyBuffer:
     def buffers(self):
         return (self,)
 
-    def movement(self, op: MovementOps, new_shape):
-        self.shape_tracker._views.append(new_shape)
+    def movement(self, op: MovementOps, new_shape: Tuple[int, ...]):
+        if op is MovementOps.EXPAND:
+            assert len(self.shape) == len(new_shape), "Shapes must have the same number of dimensions for expand."
+            for x, y in zip(self.shape, new_shape):
+                assert x == y or x == 1, f"Shape of original buffer must be 1 at the expanded dimensions, not: {x}"
+            expand = tuple([(y // x) for x, y in zip(self.shape, new_shape)])
+            self.st._strides.append(expand)
+        self.st._views.append(new_shape)
         return self
 
     def reshape(self, *new_shape: int):
