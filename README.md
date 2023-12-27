@@ -25,15 +25,16 @@ the speed of PyTorch or other popular libraries.
 
 
 ### Features:
-- implemented free reshape/expand operations
+- lazy evaluation
+- free reshape/expand operations
+
 
 ### TODOs:
 - [x] implement basic Clang backend
 - [x] write tests to be able to refactor with confidence
-- [ ] implement reduce operations (sum, max, min, ... )
+- [x] implement reduce operations (sum, max, min, ... )
 - [ ] think about adding native matmul instead of assembling it with EXPAND, MUL, SUM
 - [ ] implement way faster opencl backend 
-- [ ] maybe tune open cl backend
 
 
 

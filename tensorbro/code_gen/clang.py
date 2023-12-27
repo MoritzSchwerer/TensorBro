@@ -45,8 +45,74 @@ uops_to_cstyle = {
 def ctype2str(t):
     return t.__name__[2:]
 
-def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
-    pass
+def gen_accumulating_loops(shape: Tuple[int, ...], reduce_dim: int, body):
+
+    char = CHARACTERS[len(shape) - 1]
+    loops = For(
+        f'int {char} = 0',
+        f'{char}<{shape[-1]}',
+        f'{char}++',
+        body
+    )
+    for i, dim in enumerate(reversed(shape[:-1])):
+        char = CHARACTERS[len(shape) - 2 - i]
+        loops = For(f'int {char} = 0',
+            f'{char}<{shape[len(shape) - 2 - i]}',
+            f'{char}++',
+            Block([loops])
+        )
+    return loops
+
+def gen_index_accumulating(shape, acc_dim):
+    idx_calc = ""
+    for i in range(len(shape)):
+        if i == acc_dim:
+            continue
+        idx_calc += f"{CHARACTERS[i]}"
+        for j in range(i+1,len(shape)):
+            idx_calc += f" * {shape[j]}" if j != acc_dim else ""
+        idx_calc += " + "
+    idx_calc = idx_calc[:-3]
+    return idx_calc
+
+def gen_index_from_shape(shape):
+    idx_calc = ""
+    for i in range(len(shape)):
+        idx_calc += f"{CHARACTERS[i]}"
+        for j in range(i+1,len(shape)):
+            idx_calc += f" * {shape[j]}"
+        idx_calc += " + "
+    idx_calc = idx_calc[:-3]
+    return idx_calc
+    
+def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], dtype=c.c_float, arg=0) -> Module:
+    accIdx = Assign("int accIdx", gen_index_accumulating(shape, arg))
+    idx = Assign("int idx", gen_index_from_shape(shape))
+    if op is ReduceOps.SUM:
+        acc_op = Assign("out[accIdx]", "out[accIdx] + inp1[idx]") 
+    elif op is ReduceOps.MAX: 
+        acc_op = Assign("out[accIdx]", "(out[accIdx] > inp1[idx]) ? out[accIdx] : inp1[idx]") 
+    body = Block([idx, accIdx, acc_op])
+    body = gen_accumulating_loops(shape, arg, body)
+
+    code = Module(
+        [
+            Include("math.h"),
+            FunctionBody(
+                FunctionDeclaration(
+                    Value('void', function_name),
+                    arg_decls=[Pointer(POD(dtype, name)) for name in ['out', "inp1"]],
+                ),
+                Block(
+                    [
+                        body
+                    ]
+                ),
+            )
+        ]
+    )
+    print(code)
+    return code
 
 
 
@@ -196,6 +262,8 @@ def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, ar
     elif op in LoadOps:
         strided_shape = tuple([sh//st for sh,st in zip(shape, strides)])
         return c_load(func_name, op, strided_shape, dtype=dtype, arg=arg)
+    elif op in ReduceOps:
+        return c_reduce(func_name, op, shape, dtype=dtype) # type: ignore
     else:
         raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
@@ -241,6 +309,13 @@ class CProgram:
             func_name = f'load_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             func_name += '' if self.arg is None else f'_{int(self.arg)}'
             args = (c.POINTER(c.c_float),)
+        elif self.op in ReduceOps:
+            shape = self.srcs[0].shape
+            str_shape = str(math.prod(shape))
+            func_name = f"reduce_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}_{self.arg}"
+            args = (c.POINTER(c.c_float), c.POINTER(c.c_float))
+        else: 
+            raise NotImplementedError(f"op: {self.op} not implemented in _get_func_name_args")
         return func_name, args
 
     def _write_codepy(self) -> None:
@@ -253,7 +328,7 @@ class CProgram:
             self._program = lib[func_name]
             return
 
-        code = c_generator(func_name, self.op, self.shape, *self.strides, dtype=self.dtype, arg=self.arg)
+        code = c_generator(func_name, self.op, self.shape if self.op not in ReduceOps else self.srcs[0].shape, *self.strides, dtype=self.dtype, arg=self.arg)
 
         func_file_code = Path('/tmp') / f'{func_name}.c'
         # save program to file and compile it

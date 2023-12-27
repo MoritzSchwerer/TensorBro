@@ -2,8 +2,34 @@ import unittest
 import numpy as np
 
 from tensorbro import LazyBuffer
-from tensorbro.ops import BinaryOps, UnaryOps, MovementOps
+from tensorbro.ops import BinaryOps, UnaryOps, MovementOps, ReduceOps
 from tensorbro.linearizer import linearize
+
+class TestLazyOpsReduce(unittest.TestCase):
+    def setUp(self):
+        self.l1 = LazyBuffer.rand((5, 10, 20), device="CLANG")
+
+    def test_sum_1(self):
+        res = self.l1.reduce(ReduceOps.SUM, 0)
+        linearize(res.schedule())()
+
+        np_res = np.frombuffer(self.l1.base, np.float32).reshape(5, 10, 20).sum(0)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_max_1(self):
+        res = self.l1.reduce(ReduceOps.MAX, 0)
+        linearize(res.schedule())()
+
+        np_res = np.frombuffer(self.l1.base, np.float32).reshape(5, 10, 20).max(0)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+
 
 class TestLazyOpsMovement(unittest.TestCase):
     def setUp(self):

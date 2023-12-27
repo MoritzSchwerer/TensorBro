@@ -3,7 +3,7 @@ import ctypes as c
 
 from typing import Optional, Tuple, Union, List
 
-from .ops import LazyOp, BinaryOps, UnaryOps, TernaryOps, LoadOps, MovementOps
+from .ops import LazyOp, BinaryOps, UnaryOps, TernaryOps, LoadOps, MovementOps, ReduceOps
 from .runners.clang import CAllocator
 from .linearizer import ScheduleItem
 
@@ -116,6 +116,11 @@ class LazyBuffer:
         srcs = (self,) + srcs
         lazy_op = LazyOp(op, srcs) # type: ignore
         return LazyBuffer(lazy_op, self.device, self.shape_tracker)
+
+    def reduce(self, op: ReduceOps, dim: int = 0):
+        new_shape = tuple([size for i, size in enumerate(self.shape) if i != dim])
+        lazy_op = LazyOp(op, (self,), dim) # type: ignore
+        return LazyBuffer(lazy_op, self.device, ShapeTracker.from_shape(new_shape))
 
 
     # utility functions to make life easier
