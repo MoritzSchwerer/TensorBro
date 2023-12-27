@@ -103,6 +103,9 @@ class LazyBuffer:
     def reshape(self, *new_shape: int):
         return self.movement(MovementOps.RESHAPE, tuple(new_shape))
 
+    def expand(self, *new_shape: int):
+        return self.movement(MovementOps.EXPAND, tuple(new_shape))
+
     # TODO: if we find elemwise, movement elemwise pattern
     # we can push the movement op above the first elementwise op
     def elementwise(self, op: Union[UnaryOps, BinaryOps, TernaryOps], *srcs):
