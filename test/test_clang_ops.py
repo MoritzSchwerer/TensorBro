@@ -35,11 +35,27 @@ class TestLazyOpsUnary(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_unary_neg_strided(self):
+        l1 = LazyBuffer.rand((10, 1, 1), device="CLANG")
+        res = l1.expand(10, 5, 8).elementwise(UnaryOps.NEG)
+        linearize(res.schedule())()
+        np_res = -np.frombuffer(l1.base, np.float32).reshape(10, 1, 1)
+        clang_res = np.frombuffer(res.base, np.float32).reshape(10, 1, 1)
+        np.testing.assert_allclose(np_res, clang_res)
+
     def test_unary_sin(self):
         res = self.l1.elementwise(UnaryOps.SIN)
         linearize(res.schedule())()
         np_res = np.sin(np.ones((10, 10)) * 10)
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_unary_sin_strided(self):
+        l1 = LazyBuffer.rand((10, 1, 1), device="CLANG")
+        res = l1.expand(10, 5, 8).elementwise(UnaryOps.SIN)
+        linearize(res.schedule())()
+        np_res = np.sin(np.frombuffer(l1.base, np.float32).reshape(10, 1, 1))
+        clang_res = np.frombuffer(res.base, np.float32).reshape(10, 1, 1)
         np.testing.assert_allclose(np_res, clang_res)
 
     def test_unary_sqrt(self):
@@ -49,11 +65,27 @@ class TestLazyOpsUnary(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_unary_sqrt_strided(self):
+        l1 = LazyBuffer.rand((10, 1, 1), device="CLANG")
+        res = l1.expand(10, 5, 8).elementwise(UnaryOps.SQRT)
+        linearize(res.schedule())()
+        np_res = np.sqrt(np.frombuffer(l1.base, np.float32).reshape(10, 1, 1))
+        clang_res = np.frombuffer(res.base, np.float32).reshape(10, 1, 1)
+        np.testing.assert_allclose(np_res, clang_res)
+
     def test_unary_exp2(self):
         res = self.l1.elementwise(UnaryOps.EXP2)
         linearize(res.schedule())()
         np_res = np.exp2(np.ones((10, 10)) * 10)
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_unary_exp2_strided(self):
+        l1 = LazyBuffer.rand((10, 1, 1), device="CLANG")
+        res = l1.expand(10, 5, 8).elementwise(UnaryOps.EXP2)
+        linearize(res.schedule())()
+        np_res = np.exp2(np.frombuffer(l1.base, np.float32).reshape(10, 1, 1))
+        clang_res = np.frombuffer(res.base, np.float32).reshape(10, 1, 1)
         np.testing.assert_allclose(np_res, clang_res)
 
     def test_unary_log2(self):
@@ -62,6 +94,15 @@ class TestLazyOpsUnary(unittest.TestCase):
         np_res = np.log2(np.ones((10, 10)) * 10)
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
+
+    def test_unary_log2_strided(self):
+        l1 = LazyBuffer.rand((10, 1, 1), device="CLANG")
+        res = l1.expand(10, 5, 8).elementwise(UnaryOps.LOG2)
+        linearize(res.schedule())()
+        np_res = np.log2(np.frombuffer(l1.base, np.float32).reshape(10, 1, 1))
+        clang_res = np.frombuffer(res.base, np.float32).reshape(10, 1, 1)
+        np.testing.assert_allclose(np_res, clang_res)
+
 
 class TestLazyOpsBinary(unittest.TestCase):
     def setUp(self):

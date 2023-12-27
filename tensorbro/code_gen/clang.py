@@ -191,7 +191,8 @@ def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, ar
     if op in BinaryOps:
         return c_binary(func_name, op, shape, *strides, dtype=dtype) # type: ignore
     elif op in UnaryOps:
-        return c_unary(func_name, op, shape, dtype=dtype) # type: ignore
+        strided_shape = tuple([sh//st for sh,st in zip(shape, strides[0])])
+        return c_unary(func_name, op, strided_shape, dtype=dtype) # type: ignore
     elif op in LoadOps:
         strided_shape = tuple([sh//st for sh,st in zip(shape, strides)])
         return c_load(func_name, op, strided_shape, dtype=dtype, arg=arg)
