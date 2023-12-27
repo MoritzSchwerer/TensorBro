@@ -20,6 +20,11 @@ from typing import List, Tuple, Any, Type
 
 from ..ops import BinaryOps, LoadOps, OpType, UnaryOps, ReduceOps
 
+ALWAYS_RECOMPILE = True
+
+CHARACTERS = list(map(chr, range(97, 123)))
+
+
 
 bops_to_cstyle = {
     BinaryOps.MUL: '*',
@@ -70,14 +75,61 @@ def c_unary(function_name: str, op: UnaryOps, shape: Tuple[int, ...], dtype=c.c_
     )
     return code
 
+def gen_indices_strided(shape, stride):
+    idx_calc = ""
+    for i in range(len(shape)):
+        if stride[i] != 1:
+            continue
+        idx_calc += f"{CHARACTERS[i]}"
+        for j, s in enumerate(shape[i+1:]):
+            if stride[i+1+j] != 1:
+                continue
+            idx_calc += f" * {s}"
+        idx_calc += " + "
+    idx_calc = idx_calc[:-3]
 
-def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.c_float) -> Module:
+    return idx_calc
+
+
+        
+
+
+def gen_n_for_loops(shape: Tuple[int, ...], body: str):
+    char = CHARACTERS[len(shape) - 1]
+    loops = For(
+        f'int {char} = 0',
+        f'{char}<{shape[-1]}',
+        f'{char}++',
+        body
+    )
+    for i, dim in enumerate(reversed(shape[:-1])):
+        char = CHARACTERS[len(shape) - 2 - i]
+        loops = For(f'int {char} = 0',
+            f'{char}<{shape[len(shape)-2 -i]}',
+            f'{char}++',
+            Block([loops])
+        )
+    return loops
+
+
+def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], *strides: Tuple[int, ...], dtype=c.c_float) -> Module:
     includes = []
     if op is BinaryOps.MAX:
-        assignment = Assign("out[i]", "fmax(inp1[i], inp2[i])")
+        assignment = Assign('out[outIdx]', 'fmax(inp1[idx1], inp2[idx2])')
         includes.append(Include("math.h"))
     else:
-        assignment = Assign('out[i]', f'inp1[i] {bops_to_cstyle[op]} inp2[i]')
+        assignment = Assign('out[outIdx]', f'inp1[idx1] {bops_to_cstyle[op]} inp2[idx2]')
+
+    idx1 = Assign('int idx1', gen_indices_strided(shape, strides[0]))
+    idx2 = Assign('int idx2', gen_indices_strided(shape, strides[1]))
+    out_idx = Assign('int outIdx', gen_indices_strided(shape, tuple([1 for _ in range(len(strides[0]))])))
+    block = Block([
+        idx1,
+        idx2,
+        out_idx,
+        assignment
+    ])
+    loops = gen_n_for_loops(shape ,block)
     code = Module(
         [
             *includes,
@@ -88,12 +140,7 @@ def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], dtype=c.
                 ),
                 Block(
                     [
-                        For(
-                            'int i = 0',
-                            f'i<{math.prod(shape)}',
-                            'i++',
-                            Block([assignment]),
-                        ),
+                        loops
                     ]
                 ),
             )
@@ -140,13 +187,14 @@ def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
     return code
 
 
-def c_generator(func_name: str, op: OpType, shape, dtype=c.c_float, arg=None) -> Module:
+def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, arg=None) -> Module:
     if op in BinaryOps:
-        return c_binary(func_name, op, shape, dtype) # type: ignore
+        return c_binary(func_name, op, shape, *strides, dtype=dtype) # type: ignore
     elif op in UnaryOps:
-        return c_unary(func_name, op, shape, dtype) # type: ignore
+        return c_unary(func_name, op, shape, dtype=dtype) # type: ignore
     elif op in LoadOps:
-        return c_load(func_name, op, shape, dtype, arg)
+        strided_shape = tuple([sh//st for sh,st in zip(shape, strides)])
+        return c_load(func_name, op, strided_shape, dtype=dtype, arg=arg)
     else:
         raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
@@ -155,11 +203,17 @@ class CProgram:
     incudes: List[str] = ['stdio.h', 'stdlib.h', 'time.h']
     kernel_prefix: str = 'void'
 
-    def __init__(self, op, shape, dtype, arg=None):
-        self.op = op
-        self.shape = shape
-        self.dtype = dtype
-        self.arg = arg
+    def __init__(self, si: 'ScheduleItem'):
+        self.op = si.op.op
+        self.shape = si.target.shape
+        self.dtype = c.c_float
+        self.arg = si.op.arg
+        if len(si.srcs) > 0:
+            self.srcs = si.srcs
+            self.strides = tuple([lb.st.stride for lb in si.srcs])
+        else:
+            self.srcs = tuple()
+            self.strides = si.target.st.stride
 
         self._write_codepy()
 
@@ -171,15 +225,18 @@ class CProgram:
         return self._program
 
     def _gen_func_name_args(self) -> Tuple[str, Any]:
-        str_shape = str(math.prod(self.shape))
         args: Tuple[Type[c._Pointer[c.c_float]], ...] 
         if self.op in BinaryOps:
+            str_shape = str(math.prod(self.shape))
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
         elif self.op in UnaryOps:
+            str_shape = str(math.prod(self.shape))
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), )
         elif self.op in LoadOps:
+            strided_shape = tuple([sh//st for sh,st in zip(self.shape, self.strides)])
+            str_shape = str(math.prod(strided_shape))
             func_name = f'load_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             func_name += '' if self.arg is None else f'_{int(self.arg)}'
             args = (c.POINTER(c.c_float),)
@@ -189,13 +246,13 @@ class CProgram:
         func_name, args = self._gen_func_name_args()
         func_file_cmp = Path('/tmp') / f'{func_name}.out'
         # check if function was already compiled
-        if func_file_cmp.exists():
+        if func_file_cmp.exists() and not ALWAYS_RECOMPILE:
             lib = c.CDLL(str(func_file_cmp))
             lib[func_name].argtypes = args
             self._program = lib[func_name]
             return
 
-        code = c_generator(func_name, self.op, self.shape, self.dtype, arg=self.arg)
+        code = c_generator(func_name, self.op, self.shape, *self.strides, dtype=self.dtype, arg=self.arg)
 
         func_file_code = Path('/tmp') / f'{func_name}.c'
         # save program to file and compile it

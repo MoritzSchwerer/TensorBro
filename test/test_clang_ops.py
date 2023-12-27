@@ -23,22 +23,6 @@ class TestLazyOpsMovement(unittest.TestCase):
         self.assertEqual(res.shape, (100, 20))
         self.assertEqual(res.st.stride, (1, 20))
         
-    # def test_permute(self):
-    #     res = self.l1.movement(MovementOps.RESHAPE, (20, 5))
-    #     linearize(res.schedule())()
-    #     np_res = np.ones((20, 5)) * 10
-    #     clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
-    #     np.testing.assert_allclose(np_res, clang_res)
-
-    # def test_pad(self):
-    #     res = self.l1.movement(MovementOps.RESHAPE, (20, 5))
-    #     linearize(res.schedule())()
-    #     np_res = np.ones((20, 5)) * 10
-    #     clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
-    #     np.testing.assert_allclose(np_res, clang_res)
-
-
-
 
 class TestLazyOpsUnary(unittest.TestCase):
     def setUp(self):
@@ -92,12 +76,42 @@ class TestLazyOpsBinary(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_elemwise_mul_strided(self):
+        l1 = LazyBuffer.rand((10, 10, 5), device="CLANG")
+        l2 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        l2.movement(MovementOps.EXPAND, (10, 10, 5))
+
+        res = l1.elementwise(BinaryOps.MUL, l2)
+        linearize(res.schedule())()
+
+        np1 = np.frombuffer(l1.base, np.float32).reshape(*l1.shape)
+        np2 = np.frombuffer(l2.base, np.float32).reshape(1, 10, 1)
+        np3 = np.tile(np2, (10, 1, 5))
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np1 * np3, clang_res)
+
     def test_elemwise_add(self):
         res = self.l1.elementwise(BinaryOps.ADD, self.l2)
         linearize(res.schedule())()
         np_res = (np.ones((10, 10)) * 10) + (np.ones((10, 10)) * 10)
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
+
+    def test_elemwise_add_strided(self):
+        l1 = LazyBuffer.rand((10, 10, 5), device="CLANG")
+        l2 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        l2.movement(MovementOps.EXPAND, (10, 10, 5))
+
+        res = l1.elementwise(BinaryOps.ADD, l2)
+        linearize(res.schedule())()
+
+        np1 = np.frombuffer(l1.base, np.float32).reshape(*l1.shape)
+        np2 = np.frombuffer(l2.base, np.float32).reshape(1, 10, 1)
+        np3 = np.tile(np2, (10, 1, 5))
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np1 + np3, clang_res)
 
     def test_elemwise_sub(self):
         res = self.l1.elementwise(BinaryOps.SUB, self.l2)
@@ -106,6 +120,21 @@ class TestLazyOpsBinary(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_elemwise_sub_strided(self):
+        l1 = LazyBuffer.rand((10, 10, 5), device="CLANG")
+        l2 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        l2.movement(MovementOps.EXPAND, (10, 10, 5))
+
+        res = l1.elementwise(BinaryOps.SUB, l2)
+        linearize(res.schedule())()
+
+        np1 = np.frombuffer(l1.base, np.float32).reshape(*l1.shape)
+        np2 = np.frombuffer(l2.base, np.float32).reshape(1, 10, 1)
+        np3 = np.tile(np2, (10, 1, 5))
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np1 - np3, clang_res)
+
     def test_elemwise_div(self):
         res = self.l1.elementwise(BinaryOps.DIV, self.l2)
         linearize(res.schedule())()
@@ -113,9 +142,40 @@ class TestLazyOpsBinary(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_elemwise_div_strided(self):
+        l1 = LazyBuffer.rand((10, 10, 5), device="CLANG")
+        l2 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        l2.movement(MovementOps.EXPAND, (10, 10, 5))
+
+        res = l1.elementwise(BinaryOps.DIV, l2)
+        linearize(res.schedule())()
+
+        np1 = np.frombuffer(l1.base, np.float32).reshape(*l1.shape)
+        np2 = np.frombuffer(l2.base, np.float32).reshape(1, 10, 1)
+        np3 = np.tile(np2, (10, 1, 5))
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np1 / np3, clang_res)
+
     def test_elemwise_max(self):
         res = self.l1.elementwise(BinaryOps.MAX, self.l2)
         linearize(res.schedule())()
         np_res = np.maximum(np.ones((10, 10)) * 10, np.ones((10, 10)) * 10)
         clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
         np.testing.assert_allclose(np_res, clang_res)
+
+
+    def test_elemwise_max_strided(self):
+        l1 = LazyBuffer.rand((10, 10, 5), device="CLANG")
+        l2 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        l2.movement(MovementOps.EXPAND, (10, 10, 5))
+
+        res = l1.elementwise(BinaryOps.MAX, l2)
+        linearize(res.schedule())()
+
+        np1 = np.frombuffer(l1.base, np.float32).reshape(*l1.shape)
+        np2 = np.frombuffer(l2.base, np.float32).reshape(1, 10, 1)
+        np3 = np.tile(np2, (10, 1, 5))
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        np.testing.assert_allclose(np.maximum(np1, np3), clang_res)

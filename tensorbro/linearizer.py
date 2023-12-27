@@ -1,4 +1,3 @@
-import ctypes as c
 
 from typing import List, Callable, Union, Tuple, TYPE_CHECKING
 from dataclasses import dataclass
@@ -54,9 +53,7 @@ def linearize(schedule: List[ScheduleItem]) -> Callable:
     programms = []
     # buffers = []
     for s in schedule:
-        op = s.op
-        shape = s.target.shape
-        prg = CProgram(op.op, shape, c.c_float, arg=op.arg)
+        prg = CProgram(s)
         programms.append(prg)
 
     def runner():

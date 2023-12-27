@@ -58,7 +58,7 @@ class LazyBuffer:
         if value is not None:
             self._base = value
         else:
-            self._base = CAllocator.alloc(c.c_float, math.prod(self.shape_tracker.view))
+            self._base = CAllocator.alloc(c.c_float, math.prod([sh // st for sh, st in zip(self.shape, self.st.stride)]))
 
     @property
     def base(self):
