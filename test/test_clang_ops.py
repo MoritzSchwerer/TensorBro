@@ -19,11 +19,77 @@ class TestLazyOpsReduce(unittest.TestCase):
         clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
         np.testing.assert_allclose(np_res, clang_res)
 
+    def test_sum_strided_1(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.SUM, 0)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).sum(0)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_sum_strided_2(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.SUM, 1)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).sum(1)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_sum_strided_3(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.SUM, 2)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).sum(2)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
     def test_max_1(self):
         res = self.l1.reduce(ReduceOps.MAX, 0)
         linearize(res.schedule())()
 
         np_res = np.frombuffer(self.l1.base, np.float32).reshape(5, 10, 20).max(0)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_max_strided_1(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.MAX, 0)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).max(0)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_max_strided_2(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.MAX, 1)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).max(1)
+        self.assertEqual(np_res.shape, res.shape)
+
+        clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_max_strided_3(self):
+        l1 = LazyBuffer.rand((1, 10, 1), device="CLANG")
+        res = l1.expand(20, 10, 5).reduce(ReduceOps.MAX, 2)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(l1.base, np.float32).reshape(1, 10, 1), (20, 1, 5)).max(2)
         self.assertEqual(np_res.shape, res.shape)
 
         clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)

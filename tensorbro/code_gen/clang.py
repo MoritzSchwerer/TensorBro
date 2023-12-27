@@ -63,7 +63,7 @@ def gen_accumulating_loops(shape: Tuple[int, ...], reduce_dim: int, body):
         )
     return loops
 
-def gen_index_accumulating(shape, acc_dim):
+def gen_index_accumulating(shape, stride, acc_dim):
     idx_calc = ""
     for i in range(len(shape)):
         if i == acc_dim:
@@ -75,23 +75,28 @@ def gen_index_accumulating(shape, acc_dim):
     idx_calc = idx_calc[:-3]
     return idx_calc
 
-def gen_index_from_shape(shape):
+def gen_index_from_shape(shape, stride):
     idx_calc = ""
     for i in range(len(shape)):
+        if stride[i] != 1:
+            continue
         idx_calc += f"{CHARACTERS[i]}"
         for j in range(i+1,len(shape)):
-            idx_calc += f" * {shape[j]}"
+            idx_calc += f" * {shape[j]}" if stride[j] == 1 else ""
         idx_calc += " + "
     idx_calc = idx_calc[:-3]
     return idx_calc
     
-def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], dtype=c.c_float, arg=0) -> Module:
-    accIdx = Assign("int accIdx", gen_index_accumulating(shape, arg))
-    idx = Assign("int idx", gen_index_from_shape(shape))
+def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], stride: Tuple[int, ...], dtype=c.c_float, arg=0) -> Module:
+    accIdx = Assign("int accIdx", gen_index_accumulating(shape, stride, arg))
+    idx = Assign("int idx", gen_index_from_shape(shape, stride))
     if op is ReduceOps.SUM:
         acc_op = Assign("out[accIdx]", "out[accIdx] + inp1[idx]") 
     elif op is ReduceOps.MAX: 
         acc_op = Assign("out[accIdx]", "(out[accIdx] > inp1[idx]) ? out[accIdx] : inp1[idx]") 
+    else:
+        raise NotImplementedError(f"op: {op} not implemented for clang reduce")
+
     body = Block([idx, accIdx, acc_op])
     body = gen_accumulating_loops(shape, arg, body)
 
@@ -263,7 +268,7 @@ def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, ar
         strided_shape = tuple([sh//st for sh,st in zip(shape, strides)])
         return c_load(func_name, op, strided_shape, dtype=dtype, arg=arg)
     elif op in ReduceOps:
-        return c_reduce(func_name, op, shape, dtype=dtype) # type: ignore
+        return c_reduce(func_name, op, shape, strides[0], dtype=dtype, arg=arg) # type: ignore
     else:
         raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
@@ -296,22 +301,23 @@ class CProgram:
     def _gen_func_name_args(self) -> Tuple[str, Any]:
         args: Tuple[Type[c._Pointer[c.c_float]], ...] 
         if self.op in BinaryOps:
-            str_shape = str(math.prod(self.shape))
+            str_shape = '_'.join([str(s) for s in self.shape])
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
         elif self.op in UnaryOps:
-            str_shape = str(math.prod(self.shape))
+            str_shape = '_'.join([str(s) for s in self.shape])
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             args = (c.POINTER(c.c_float), )
         elif self.op in LoadOps:
             strided_shape = tuple([sh//st for sh,st in zip(self.shape, self.strides)])
             str_shape = str(math.prod(strided_shape))
+            li = self.shape + strided_shape
+            str_shape = '_'.join([str(s) for s in li])
             func_name = f'load_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
             func_name += '' if self.arg is None else f'_{int(self.arg)}'
             args = (c.POINTER(c.c_float),)
         elif self.op in ReduceOps:
-            shape = self.srcs[0].shape
-            str_shape = str(math.prod(shape))
+            str_shape = '_'.join([str(s) for s in self.srcs[0].shape])
             func_name = f"reduce_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}_{self.arg}"
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float))
         else: 
@@ -329,6 +335,7 @@ class CProgram:
             return
 
         code = c_generator(func_name, self.op, self.shape if self.op not in ReduceOps else self.srcs[0].shape, *self.strides, dtype=self.dtype, arg=self.arg)
+        print(code)
 
         func_file_code = Path('/tmp') / f'{func_name}.c'
         # save program to file and compile it

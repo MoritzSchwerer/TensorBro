@@ -33,6 +33,8 @@ the speed of PyTorch or other popular libraries.
 - [x] implement basic Clang backend
 - [x] write tests to be able to refactor with confidence
 - [x] implement reduce operations (sum, max, min, ... )
+- [x] make reduce ops work with expanded(strided) tensors
+- [ ] implement matmul
 - [ ] think about adding native matmul instead of assembling it with EXPAND, MUL, SUM
 - [ ] implement way faster opencl backend 
 
