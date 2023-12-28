@@ -5,6 +5,7 @@ from tensorbro import LazyBuffer
 from tensorbro.ops import BinaryOps, UnaryOps, MovementOps, ReduceOps
 from tensorbro.linearizer import linearize
 
+
 class TestLazyOpsReduce(unittest.TestCase):
     def setUp(self):
         self.l1 = LazyBuffer.rand((5, 10, 20), device="CLANG")
@@ -100,6 +101,7 @@ class TestLazyOpsReduce(unittest.TestCase):
 class TestLazyOpsMovement(unittest.TestCase):
     def setUp(self):
         self.l1 = LazyBuffer.full(10, (10, 10), device="CLANG")
+        self.l2 = LazyBuffer.rand((2, 4, 3), device="CLANG")
 
     def test_reshape(self):
         res = self.l1.reshape(20, 5)
@@ -114,6 +116,43 @@ class TestLazyOpsMovement(unittest.TestCase):
         linearize(res.schedule())()
         self.assertEqual(res.shape, (100, 20))
         self.assertEqual(res.st.stride, (1, 20))
+
+    def test_permute_1(self):
+        res = self.l2.permute(0, 2, 1)
+        linearize(res.schedule())()
+
+        np_res = np.frombuffer(self.l2.base, np.float32).reshape(2, 4, 3).transpose(0, 2, 1)
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        self.assertEqual(np_res.shape, clang_res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_permute_2(self):
+        res = self.l2.permute(2, 1, 0)
+        linearize(res.schedule())()
+
+        np_res = np.frombuffer(self.l2.base, np.float32).reshape(2, 4, 3).transpose(2, 1, 0)
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        self.assertEqual(np_res.shape, clang_res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_permute_strided_1(self):
+        res = self.l2.reshape(*self.l2.shape, 1).expand(2, 4, 3, 5).permute(0, 2, 1, 3)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(self.l2.base, np.float32).reshape(2, 4, 3, 1), (1, 1, 1, 5)).transpose(0, 2, 1, 3)
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        self.assertEqual(np_res.shape, clang_res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
+    def test_permute_strided_2(self):
+        res = self.l2.reshape(*self.l2.shape, 1).expand(2, 4, 3, 5).permute(3, 0, 2, 1)
+        linearize(res.schedule())()
+
+        np_res = np.tile(np.frombuffer(self.l2.base, np.float32).reshape(2, 4, 3, 1), (1, 1, 1, 5)).transpose(3, 0, 2, 1)
+        clang_res = np.frombuffer(res.base, np.float32).reshape(*res.shape)
+        self.assertEqual(np_res.shape, clang_res.shape)
+        np.testing.assert_allclose(np_res, clang_res)
+
         
 
 class TestLazyOpsUnary(unittest.TestCase):

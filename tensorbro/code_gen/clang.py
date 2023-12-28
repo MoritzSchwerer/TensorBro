@@ -18,13 +18,14 @@ from cgen import (
 from pathlib import Path
 from typing import List, Tuple, Any, Type
 
-from ..ops import BinaryOps, LoadOps, OpType, UnaryOps, ReduceOps
+from ..ops import BinaryOps, LoadOps, OpType, UnaryOps, ReduceOps, MovementOps
 
 ALWAYS_RECOMPILE = True
 
 CHARACTERS = list(map(chr, range(97, 123)))
 
-
+def permute_shape(shape, dim):
+    return tuple(map(lambda i: shape[i], dim))
 
 bops_to_cstyle = {
     BinaryOps.MUL: '*',
@@ -45,8 +46,67 @@ uops_to_cstyle = {
 def ctype2str(t):
     return t.__name__[2:]
 
-def gen_accumulating_loops(shape: Tuple[int, ...], reduce_dim: int, body):
+def gen_indices_strided(shape, stride, chars=None):
+    if chars is None:
+        chars = CHARACTERS
+    idx_calc = ""
+    for i in range(len(shape)):
+        if stride[i] != 1:
+            continue
+        idx_calc += f"{chars[i]}"
+        for j, s in enumerate(shape[i+1:]):
+            if stride[i+1+j] != 1:
+                continue
+            idx_calc += f" * {s}"
+        idx_calc += " + "
+    idx_calc = idx_calc[:-3]
 
+    return idx_calc
+
+def gen_n_for_loops(shape: Tuple[int, ...], body: str):
+    char = CHARACTERS[len(shape) - 1]
+    loops = For(
+        f'int {char} = 0',
+        f'{char}<{shape[-1]}',
+        f'{char}++',
+        body
+    )
+    for i, dim in enumerate(reversed(shape[:-1])):
+        char = CHARACTERS[len(shape) - 2 - i]
+        loops = For(f'int {char} = 0',
+            f'{char}<{shape[len(shape)-2 -i]}',
+            f'{char}++',
+            Block([loops])
+        )
+    return loops
+
+def c_movement(function_name: str, op: MovementOps, shape: Tuple[int, ...], stride: Tuple[int, ...] = (), permute_dim: Tuple[int, ...] = (), dtype=c.c_float) -> Module:
+    new_shape = permute_shape(shape, permute_dim)
+    new_chars = permute_shape(CHARACTERS, permute_dim)
+    idx = Assign("int idx", gen_indices_strided(shape, stride))
+    new_idx = Assign("int newIdx", gen_indices_strided(new_shape, tuple([1 for _ in shape]), new_chars))
+    assignment = Assign("out[newIdx]", "inp1[idx]")
+    body = Block([idx, new_idx, assignment])
+    body = gen_n_for_loops(shape, body)
+    code = Module(
+        [
+            Include("math.h"),
+            FunctionBody(
+                FunctionDeclaration(
+                    Value('void', function_name),
+                    arg_decls=[Pointer(POD(dtype, name)) for name in ['out', "inp1"]],
+                ),
+                Block(
+                    [
+                        body
+                    ]
+                ),
+            )
+        ]
+    )
+    return code
+
+def gen_accumulating_loops(shape: Tuple[int, ...], reduce_dim: int, body):
     char = CHARACTERS[len(shape) - 1]
     loops = For(
         f'int {char} = 0',
@@ -116,7 +176,6 @@ def c_reduce(function_name: str, op: ReduceOps, shape: Tuple[int, ...], stride: 
             )
         ]
     )
-    print(code)
     return code
 
 
@@ -145,42 +204,6 @@ def c_unary(function_name: str, op: UnaryOps, shape: Tuple[int, ...], dtype=c.c_
         ]
     )
     return code
-
-def gen_indices_strided(shape, stride):
-    idx_calc = ""
-    for i in range(len(shape)):
-        if stride[i] != 1:
-            continue
-        idx_calc += f"{CHARACTERS[i]}"
-        for j, s in enumerate(shape[i+1:]):
-            if stride[i+1+j] != 1:
-                continue
-            idx_calc += f" * {s}"
-        idx_calc += " + "
-    idx_calc = idx_calc[:-3]
-
-    return idx_calc
-
-
-        
-
-
-def gen_n_for_loops(shape: Tuple[int, ...], body: str):
-    char = CHARACTERS[len(shape) - 1]
-    loops = For(
-        f'int {char} = 0',
-        f'{char}<{shape[-1]}',
-        f'{char}++',
-        body
-    )
-    for i, dim in enumerate(reversed(shape[:-1])):
-        char = CHARACTERS[len(shape) - 2 - i]
-        loops = For(f'int {char} = 0',
-            f'{char}<{shape[len(shape)-2 -i]}',
-            f'{char}++',
-            Block([loops])
-        )
-    return loops
 
 
 def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], *strides: Tuple[int, ...], dtype=c.c_float) -> Module:
@@ -269,6 +292,8 @@ def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, ar
         return c_load(func_name, op, strided_shape, dtype=dtype, arg=arg)
     elif op in ReduceOps:
         return c_reduce(func_name, op, shape, strides[0], dtype=dtype, arg=arg) # type: ignore
+    elif op in MovementOps:
+        return c_movement(func_name, op, shape, stride=strides[0], permute_dim=arg, dtype=dtype) # type: ignore
     else:
         raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
@@ -307,7 +332,7 @@ class CProgram:
         elif self.op in UnaryOps:
             str_shape = '_'.join([str(s) for s in self.shape])
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
-            args = (c.POINTER(c.c_float), )
+            args = (c.POINTER(c.c_float), c.POINTER(c.c_float))
         elif self.op in LoadOps:
             strided_shape = tuple([sh//st for sh,st in zip(self.shape, self.strides)])
             str_shape = str(math.prod(strided_shape))
@@ -319,6 +344,10 @@ class CProgram:
         elif self.op in ReduceOps:
             str_shape = '_'.join([str(s) for s in self.srcs[0].shape])
             func_name = f"reduce_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}_{self.arg}"
+            args = (c.POINTER(c.c_float), c.POINTER(c.c_float))
+        elif self.op in MovementOps:
+            str_shape = '_'.join([str(s) for s in self.srcs[0].shape + self.arg])
+            func_name = f"movement_{self.op.name}_{str_shape}_{ctype2str(self.dtype)}"
             args = (c.POINTER(c.c_float), c.POINTER(c.c_float))
         else: 
             raise NotImplementedError(f"op: {self.op} not implemented in _get_func_name_args")
@@ -334,7 +363,13 @@ class CProgram:
             self._program = lib[func_name]
             return
 
-        code = c_generator(func_name, self.op, self.shape if self.op not in ReduceOps else self.srcs[0].shape, *self.strides, dtype=self.dtype, arg=self.arg)
+        shape = self.shape
+        if self.op in ReduceOps or self.op is MovementOps.PERMUTE:
+            shape = self.srcs[0].shape
+
+        code = c_generator(func_name, self.op, shape, *self.strides, dtype=self.dtype, arg=self.arg)
+        print("="*99)
+        print(func_name)
         print(code)
 
         func_file_code = Path('/tmp') / f'{func_name}.c'

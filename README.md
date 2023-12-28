@@ -34,6 +34,7 @@ the speed of PyTorch or other popular libraries.
 - [x] write tests to be able to refactor with confidence
 - [x] implement reduce operations (sum, max, min, ... )
 - [x] make reduce ops work with expanded(strided) tensors
+- [x] implement permute
 - [ ] implement matmul
 - [ ] Tenor class ops with gradients
 - [ ] implement backward grad function

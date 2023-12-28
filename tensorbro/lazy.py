@@ -7,6 +7,8 @@ from .ops import LazyOp, BinaryOps, UnaryOps, TernaryOps, LoadOps, MovementOps, 
 from .runners.clang import CAllocator
 from .linearizer import ScheduleItem
 
+def permute_shape(shape, dim):
+    return tuple(map(lambda i: shape[i], dim))
 
 class ShapeTracker:
     def __init__(self, view: Tuple[int, ...], stride: Optional[Tuple[int, ...]] = None):
@@ -90,7 +92,14 @@ class LazyBuffer:
     def buffers(self):
         return (self,)
 
-    def movement(self, op: MovementOps, new_shape: Tuple[int, ...]):
+    def movement(self, op: MovementOps, arg: Tuple[int, ...]):
+        if op is MovementOps.PERMUTE:
+            src = (self,)
+            lazy_op = LazyOp(op, src, arg) # type: ignore
+            new_shape = permute_shape(self.shape, arg)
+            return LazyBuffer(lazy_op, self.device, ShapeTracker.from_shape(new_shape))
+        new_shape = arg
+
         if op is MovementOps.EXPAND:
             assert len(self.shape) == len(new_shape), "Shapes must have the same number of dimensions for expand."
             for x, y in zip(self.shape, new_shape):
@@ -99,6 +108,10 @@ class LazyBuffer:
             self.st._strides.append(expand)
         self.st._views.append(new_shape)
         return self
+
+    def permute(self, *args: int):
+        assert len(self.shape) == len(args), "Length of shape needs to be same as permute inputs"
+        return self.movement(MovementOps.PERMUTE, tuple(args))
 
     def reshape(self, *new_shape: int):
         return self.movement(MovementOps.RESHAPE, tuple(new_shape))
@@ -115,7 +128,7 @@ class LazyBuffer:
             ), 'Shapes do not match, broadcasting not implemented yet.'
         srcs = (self,) + srcs
         lazy_op = LazyOp(op, srcs) # type: ignore
-        return LazyBuffer(lazy_op, self.device, self.shape_tracker)
+        return LazyBuffer(lazy_op, self.device, self.st)
 
     def __mul__(self, other):
         return self.elementwise(BinaryOps.MUL, other)
@@ -128,6 +141,13 @@ class LazyBuffer:
 
     def __div__(self, other):
         return self.elementwise(BinaryOps.DIV, other)
+
+    def matmul(self, other):
+        n1, n2 = len(self.shape), len(other.shape)
+        assert n1 > 1 and n2 > 1, "Buffers both need to be at least 2D"
+        assert self.shape[-1] == other.shape[-min(n2, 2)], f"Buffers not compatible for matmul: {self.shape} and {other.shape}."
+        x = self.reshape(*self.shape[0:-1], *[1]*min(n1-1, n2-1, 1), self.shape[-1])
+        y = other.reshape(*other.shape[0:-2], *[1]*min(n1-1, n2-1, 1), *other.shape[-min(n2, 2):]).transpose(-1, -min(n2, 2))
 
     def reduce(self, op: ReduceOps, dim: int = 0):
         new_shape = tuple([size for i, size in enumerate(self.shape) if i != dim])
