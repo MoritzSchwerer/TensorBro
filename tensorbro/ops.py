@@ -24,6 +24,7 @@ class BinaryOps(Enum):
     SUB = auto()
     DIV = auto()
     MAX = auto()
+    MATMUL = auto()
 
 
 class TernaryOps(Enum):

@@ -80,7 +80,7 @@ def gen_n_for_loops(shape: Tuple[int, ...], body: str):
         )
     return loops
 
-def c_movement(function_name: str, op: MovementOps, shape: Tuple[int, ...], stride: Tuple[int, ...] = (), permute_dim: Tuple[int, ...] = (), dtype=c.c_float) -> Module:
+def c_movement(function_name: str, shape: Tuple[int, ...], stride: Tuple[int, ...] = (), permute_dim: Tuple[int, ...] = (), dtype=c.c_float) -> Module:
     new_shape = permute_shape(shape, permute_dim)
     new_chars = permute_shape(CHARACTERS, permute_dim)
     idx = Assign("int idx", gen_indices_strided(shape, stride))
@@ -242,7 +242,43 @@ def c_binary(function_name: str, op: BinaryOps, shape: Tuple[int, ...], *strides
     )
     return code
 
-
+def c_matmul(function_name: str, shape: Tuple[int, ...], *strides: Tuple[int, ...], dtype=c.c_float, args=None) -> Module:
+    old_shape0 = args[0]
+    old_shape1 = args[1]
+    if len(args[0]) > 2:
+        old_shape0 = tuple([math.prod(args[0][:-1]), args[0][-1]])
+    if len(args[1]) > 2:
+        old_shape1 = tuple([args[1][0], math.prod(args[1][1:])])
+    if len(shape) > 2:
+        shape = tuple([math.prod(shape[:-1]), shape[-1]])
+        
+    assignment = Statement('out[outIdx] += inp1[idx1] * inp2[idx2]')
+    idx1 = Assign('int idx1', gen_indices_strided(old_shape0, strides[0], ['a', 'c', 'b']))
+    idx2 = Assign('int idx2', gen_indices_strided(old_shape1, strides[1], ['c', 'b', 'a']))
+    out_idx = Assign('int outIdx', gen_indices_strided(shape, tuple([1 for _ in range(len(strides[0]))])))
+    block = Block([
+        idx1,
+        idx2,
+        out_idx,
+        assignment
+    ])
+    loops = gen_n_for_loops(shape + (args[0][-1],), block)
+    code = Module(
+        [
+            FunctionBody(
+                FunctionDeclaration(
+                    Value('void', function_name),
+                    arg_decls=[Pointer(POD(dtype, name)) for name in ['out', 'inp1', 'inp2']],
+                ),
+                Block(
+                    [
+                        loops
+                    ]
+                ),
+            )
+        ]
+    )
+    return code
 
 
 def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
@@ -283,7 +319,10 @@ def c_load(function_name: str, op, shape, dtype=c.c_float, arg=None):
 
 def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, arg=None) -> Module:
     if op in BinaryOps:
-        return c_binary(func_name, op, shape, *strides, dtype=dtype) # type: ignore
+        if op is BinaryOps.MATMUL:
+            return c_matmul(func_name, shape, *strides, dtype=c.c_float, args=arg)
+        else:
+            return c_binary(func_name, op, shape, *strides, dtype=dtype) # type: ignore
     elif op in UnaryOps:
         strided_shape = tuple([sh//st for sh,st in zip(shape, strides[0])])
         return c_unary(func_name, op, strided_shape, dtype=dtype) # type: ignore
@@ -293,7 +332,7 @@ def c_generator(func_name: str, op: OpType, shape, *strides, dtype=c.c_float, ar
     elif op in ReduceOps:
         return c_reduce(func_name, op, shape, strides[0], dtype=dtype, arg=arg) # type: ignore
     elif op in MovementOps:
-        return c_movement(func_name, op, shape, stride=strides[0], permute_dim=arg, dtype=dtype) # type: ignore
+        return c_movement(func_name, shape, stride=strides[0], permute_dim=arg, dtype=dtype) # type: ignore
     else:
         raise NotImplementedError(f'c_generator for {op.op} not implemented yet.') # type: ignore
 
@@ -326,9 +365,14 @@ class CProgram:
     def _gen_func_name_args(self) -> Tuple[str, Any]:
         args: Tuple[Type[c._Pointer[c.c_float]], ...] 
         if self.op in BinaryOps:
-            str_shape = '_'.join([str(s) for s in self.shape])
-            func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
-            args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
+            if self.op is BinaryOps.MATMUL:
+                str_shape = '_'.join([str(s) for s in self.arg[0] + self.arg[1]])
+                func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
+                args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
+            else:
+                str_shape = '_'.join([str(s) for s in self.shape])
+                func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'
+                args = (c.POINTER(c.c_float), c.POINTER(c.c_float), c.POINTER(c.c_float))
         elif self.op in UnaryOps:
             str_shape = '_'.join([str(s) for s in self.shape])
             func_name = f'{self.op.name}_{str_shape}_{ctype2str(self.dtype)}'

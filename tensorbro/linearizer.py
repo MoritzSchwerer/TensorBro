@@ -50,6 +50,7 @@ def linearize(schedule: List[ScheduleItem]) -> Callable:
         dtype: float32 (only support float32)
         programm: c code that takes the inputs and produces the output
     """
+    # print(*schedule, sep='\n')
     programms = []
     # buffers = []
     for s in schedule:

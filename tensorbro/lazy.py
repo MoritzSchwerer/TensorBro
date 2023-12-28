@@ -105,8 +105,11 @@ class LazyBuffer:
             for x, y in zip(self.shape, new_shape):
                 assert x == y or x == 1, f"Shape of original buffer must be 1 at the expanded dimensions, not: {x}"
             expand = tuple([(y // x) for x, y in zip(self.shape, new_shape)])
+            self.st._views.append(new_shape)
             self.st._strides.append(expand)
-        self.st._views.append(new_shape)
+        else:
+            self.st._views.append(new_shape)
+            self.st._strides.append(tuple([1 for _ in new_shape]))
         return self
 
     def permute(self, *args: int):
@@ -142,17 +145,39 @@ class LazyBuffer:
     def __div__(self, other):
         return self.elementwise(BinaryOps.DIV, other)
 
+    def transpose(self, ind1: int, ind2: int):
+        if ind1 < 0:
+            ind1 = len(self.shape) + ind1
+        if ind2 < 0:
+            ind2 = len(self.shape) + ind2
+        perm_dims = [i for i in range(len(self.shape))]
+        perm_dims[ind1] = ind2
+        perm_dims[ind2] = ind1
+        return self.permute(*perm_dims)
+
+    def dot(self, other):
+        assert len(self.shape) >= 2 and len(other.shape) >= 2, "shapes must be at least 2d for matmul"
+        srcs = (self, ) + (other, )
+        shapes = tuple([s.shape for s in srcs])
+        lazy_op = LazyOp(BinaryOps.MATMUL, srcs, arg=shapes)
+        new_shape = tuple([*self.shape[:-1], other.shape[-1]])
+        return LazyBuffer(lazy_op, self.device, ShapeTracker.from_shape(new_shape))
+
     def matmul(self, other):
-        n1, n2 = len(self.shape), len(other.shape)
-        assert n1 > 1 and n2 > 1, "Buffers both need to be at least 2D"
-        assert self.shape[-1] == other.shape[-min(n2, 2)], f"Buffers not compatible for matmul: {self.shape} and {other.shape}."
-        x = self.reshape(*self.shape[0:-1], *[1]*min(n1-1, n2-1, 1), self.shape[-1])
-        y = other.reshape(*other.shape[0:-2], *[1]*min(n1-1, n2-1, 1), *other.shape[-min(n2, 2):]).transpose(-1, -min(n2, 2))
+        res_shape = tuple([*self.shape[:-1], *other.shape[1:]])
+        dot = self.dot(other)
+        return dot.reshape(*res_shape)
+
 
     def reduce(self, op: ReduceOps, dim: int = 0):
         new_shape = tuple([size for i, size in enumerate(self.shape) if i != dim])
         lazy_op = LazyOp(op, (self,), dim) # type: ignore
         return LazyBuffer(lazy_op, self.device, ShapeTracker.from_shape(new_shape))
+
+    def sum(self, dim: int = 0):
+        if dim < 0:
+            dim = len(self.shape) + dim
+        return self.reduce(ReduceOps.SUM, dim)
 
 
     # utility functions to make life easier

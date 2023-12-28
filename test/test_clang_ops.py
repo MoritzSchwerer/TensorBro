@@ -5,6 +5,36 @@ from tensorbro import LazyBuffer
 from tensorbro.ops import BinaryOps, UnaryOps, MovementOps, ReduceOps
 from tensorbro.linearizer import linearize
 
+class TestMatmul(unittest.TestCase):
+    def setUp(self):
+        self.l1 = LazyBuffer.rand((10, 20), device="CLANG")
+        self.l2 = LazyBuffer.rand((20, 10), device="CLANG")
+
+    # def test_matmul_2d(self):
+    #     res = self.l1.matmul(self.l2)
+    #     linearize(res.schedule())()
+    #
+    #     np1 = np.frombuffer(self.l1.base, np.float32).reshape(10, 20)
+    #     np2 = np.frombuffer(self.l2.base, np.float32).reshape(20, 10)
+    #     np_res = np1 @ np2
+    #     self.assertEqual(np_res.shape, res.shape)
+    #
+    #     clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+    #     np.testing.assert_allclose(np_res, clang_res, rtol=1e-5)
+    #
+    # def test_matmul_3d(self):
+    #     l1 = LazyBuffer.rand((5, 10, 20), device="CLANG")
+    #     l2 = LazyBuffer.rand((20, 10), device="CLANG")
+    #     res = l1.matmul(l2)
+    #     linearize(res.schedule())()
+    #
+    #     np1 = np.frombuffer(l1.base, np.float32).reshape(5, 10, 20)
+    #     np2 = np.frombuffer(l2.base, np.float32).reshape(20, 10)
+    #     np_res = np1 @ np2
+    #     self.assertEqual(np_res.shape, res.shape)
+    #
+    #     clang_res = np.frombuffer(res.base, np.float32).reshape(res.shape)
+    #     np.testing.assert_allclose(np_res, clang_res, rtol=1e-5)
 
 class TestLazyOpsReduce(unittest.TestCase):
     def setUp(self):
