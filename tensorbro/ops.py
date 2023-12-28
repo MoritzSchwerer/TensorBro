@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from typing import Union, Type, Tuple, Any
-
 from .tensor import Context
 
 class LoadOps(Enum):
@@ -65,9 +64,6 @@ class LazyOp:
     def buffers(self):
         return sum([s.buffers for s in self.srcs], ())
 
-
-
-
 class Mul(Context):
     def forward(self, x, y):
         self.x, self.y = x, y
@@ -79,10 +75,16 @@ class Mul(Context):
     def __repr__(self):
         return f'Mul: x={self.x}, y={self.y}'
 
-
 class Add(Context):
     def forward(self, x, y):
         return x + y
 
     def backward(self, out_grad):
         return out_grad, out_grad
+
+class Sub(Context):
+    def forward(self, x, y):
+        return x - y
+
+    def backward(self, out_grad):
+        return out_grad, -out_grad

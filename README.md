@@ -26,7 +26,7 @@ the speed of PyTorch or other popular libraries.
 
 ### Features:
 - lazy evaluation
-- free reshape/expand operations
+- zero cost reshape/expand operations
 
 
 ### TODOs:
@@ -35,8 +35,14 @@ the speed of PyTorch or other popular libraries.
 - [x] implement reduce operations (sum, max, min, ... )
 - [x] make reduce ops work with expanded(strided) tensors
 - [ ] implement matmul
-- [ ] think about adding native matmul instead of assembling it with EXPAND, MUL, SUM
-- [ ] implement way faster opencl backend 
+- [ ] Tenor class ops with gradients
+- [ ] implement backward grad function
+- [ ] think about and implement op merging
+- [ ] implement slice
+- [ ] make slice zero cost
+
+
+
 
 
 

@@ -22,15 +22,37 @@ class Context:
         return result
 
 class Tensor:
-    def __init__(self, data) -> None:
+    def __init__(self, data, device="CLANG") -> None:
         self.data = data
         self.context: Optional[Context] = None
+        self.device = device
 
     def __repr__(self):
         return f'Tensor: data={self.data}\n'
+
+    @staticmethod
+    def full(value, shape, device="CLANG"):
+        from tensorbro import LazyBuffer
+        return Tensor(LazyBuffer.full(value, shape, device))
+
+    @staticmethod
+    def ones(shape, device="CLANG"):
+        return Tensor.full(1, shape, device)
+
+    @staticmethod
+    def zeros(shape, device="CLANG"):
+        return Tensor.full(0, shape, device)
+
+    @staticmethod
+    def rand(shape, device="CLANG"):
+        from tensorbro import LazyBuffer
+        return Tensor(LazyBuffer.rand(shape, device))
 
     def __mul__(self, other):
         return ops.Mul.apply(self, other)
 
     def __add__(self, other):
         return ops.Add.apply(self, other)
+
+    def __sub__(self, other):
+        return ops.Sub.apply(self, other)

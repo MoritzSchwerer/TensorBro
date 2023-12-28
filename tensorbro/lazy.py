@@ -117,6 +117,18 @@ class LazyBuffer:
         lazy_op = LazyOp(op, srcs) # type: ignore
         return LazyBuffer(lazy_op, self.device, self.shape_tracker)
 
+    def __mul__(self, other):
+        return self.elementwise(BinaryOps.MUL, other)
+
+    def __add__(self, other):
+        return self.elementwise(BinaryOps.ADD, other)
+
+    def __sub__(self, other):
+        return self.elementwise(BinaryOps.SUB, other)
+
+    def __div__(self, other):
+        return self.elementwise(BinaryOps.DIV, other)
+
     def reduce(self, op: ReduceOps, dim: int = 0):
         new_shape = tuple([size for i, size in enumerate(self.shape) if i != dim])
         lazy_op = LazyOp(op, (self,), dim) # type: ignore
