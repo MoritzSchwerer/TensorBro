@@ -24,6 +24,11 @@ me a lot so far in will keep doing so in the future, but it will never get close
 the speed of PyTorch or other popular libraries.
 
 
+A simple example without autograd can be found at: examples/simple_tensor_ops.py
+Autograd example will follow shortly. Everything needed already exist on a low level
+I just have to write the syntax sugar (Tensor class) part for it.
+
+
 ### Features:
 - lazy evaluation
 - zero cost reshape/expand operations
@@ -35,9 +40,8 @@ the speed of PyTorch or other popular libraries.
 - [x] implement reduce operations (sum, max, min, ... )
 - [x] make reduce ops work with expanded(strided) tensors
 - [x] implement permute
-- [ ] implement matmul
+- [x] implement matmul
 - [ ] Tenor class ops with gradients
-- [ ] implement backward grad function
 - [ ] think about and implement op merging
 - [ ] implement slice
 - [ ] make slice zero cost

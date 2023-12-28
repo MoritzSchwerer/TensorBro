@@ -89,3 +89,14 @@ class Sub(Context):
 
     def backward(self, out_grad):
         return out_grad, -out_grad
+
+class Matmul(Context):
+    def forward(self, x, y):
+        self.x, self.y = x, y
+        return x.matmul(y)
+
+    def backward(self, out_grad):
+        return out_grad.matmul(self.y), self.x.matmul(out_grad)
+
+    def __repr__(self):
+        return f'Mul: x={self.x}, y={self.y}'

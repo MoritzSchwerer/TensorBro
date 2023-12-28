@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+
 import tensorbro.ops as ops
 
 class Context:
@@ -22,10 +23,12 @@ class Context:
         return result
 
 class Tensor:
+    _seed: int = 0
     def __init__(self, data, device="CLANG") -> None:
         self.data = data
         self.context: Optional[Context] = None
         self.device = device
+        self.is_materialized = False
 
     def __repr__(self):
         return f'Tensor: data={self.data}\n'
@@ -46,7 +49,8 @@ class Tensor:
     @staticmethod
     def rand(shape, device="CLANG"):
         from tensorbro import LazyBuffer
-        return Tensor(LazyBuffer.rand(shape, device))
+        Tensor._seed += 1
+        return Tensor(LazyBuffer.rand(shape, device, seed=Tensor._seed))
 
     def __mul__(self, other):
         return ops.Mul.apply(self, other)
@@ -56,3 +60,15 @@ class Tensor:
 
     def __sub__(self, other):
         return ops.Sub.apply(self, other)
+
+    def __matmul__(self, other):
+        return ops.Matmul.apply(self, other)
+
+    def materialize(self):
+        from tensorbro.linearizer import linearize
+        schedule = self.data.schedule()
+        prg = linearize(schedule)
+        prg()
+
+    def backward(self, grad):
+        pass

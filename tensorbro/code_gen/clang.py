@@ -412,9 +412,6 @@ class CProgram:
             shape = self.srcs[0].shape
 
         code = c_generator(func_name, self.op, shape, *self.strides, dtype=self.dtype, arg=self.arg)
-        print("="*99)
-        print(func_name)
-        print(code)
 
         func_file_code = Path('/tmp') / f'{func_name}.c'
         # save program to file and compile it
